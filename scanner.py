@@ -53,6 +53,7 @@ def scan_batch(symbols):
     data = yf.download(
         tickers=" ".join(symbols),
         period="45d",
+        auto_adjust=False,
         interval="1d",
         group_by="ticker",
         auto_adjust=False,
