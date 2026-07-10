@@ -1,13 +1,14 @@
 import yfinance as yf
 from symbols import get_symbols
 
-GAP_THRESHOLD = 10
+GAP_THRESHOLD = 15
 LOOKBACK_DAYS = 5
 BATCH_SIZE = 100
 
 MIN_MARKET_CAP = 3_000_000_000
 MIN_AVG_VOLUME_30D = 500_000
 MIN_PRICE = 5
+MIN_VOLUME_MULTIPLE = 1.5
 
 
 def clean_symbol(symbol):
@@ -72,11 +73,13 @@ def scan_batch(symbols):
             recent = df.tail(LOOKBACK_DAYS + 1)
             gap_found = None
             gap_date = None
+            gap_day_volume = None
 
             for i in range(1, len(recent)):
                 prev_close = recent["Close"].iloc[i - 1]
                 today_open = recent["Open"].iloc[i]
                 today_low = recent["Low"].iloc[i]
+                today_volume = recent["Volume"].iloc[i]
 
                 if prev_close <= 0:
                     continue
@@ -86,6 +89,7 @@ def scan_batch(symbols):
                 if gap >= GAP_THRESHOLD and today_low > prev_close:
                     gap_found = gap
                     gap_date = recent.index[i].strftime("%Y-%m-%d")
+                    gap_day_volume = today_volume
                     break
 
             if gap_found is None:
@@ -100,17 +104,15 @@ def scan_batch(symbols):
 
             stats["volume_pass"] += 1
 
+            if gap_day_volume < avg_volume_30d * MIN_VOLUME_MULTIPLE:
+                continue
+
             current_price = df["Close"].iloc[-1]
 
             if current_price < MIN_PRICE:
                 continue
 
             stats["price_pass"] += 1
-
-            today_volume = recent["Volume"].iloc[i]
-
-            if today_volume < avg_volume_30d * 1.5:
-    continue
 
             market_cap = get_market_cap(symbol)
 
@@ -124,7 +126,15 @@ def scan_batch(symbols):
             stats["market_cap_pass"] += 1
 
             results.append(
-                (symbol, gap_date, gap_found, market_cap, avg_volume_30d, current_price)
+                (
+                    symbol,
+                    gap_date,
+                    gap_found,
+                    market_cap,
+                    avg_volume_30d,
+                    gap_day_volume,
+                    current_price,
+                )
             )
 
         except Exception:
@@ -139,11 +149,12 @@ def main():
 
     print(f"取得銘柄数: {len(symbols)}")
     print("条件:")
-    print("・直近5営業日以内に10%以上GU")
+    print("・直近5営業日以内に15%以上GU")
     print("・窓を維持: 当日の安値が前日終値より上")
     print("・株価5USD以上")
     print("・時価総額3Bドル以上")
     print("・30日平均出来高50万株以上")
+    print("・GU当日出来高が30日平均の1.5倍以上")
     print("スキャン開始")
 
     all_results = []
@@ -170,8 +181,8 @@ def main():
     print("")
     print("===== 集計 =====")
     print(f"チェック銘柄数: {total_stats['checked']}")
-    print(f"10%以上GUかつ窓維持銘柄: {total_stats['gap_hit']}")
-    print(f"出来高50万株以上: {total_stats['volume_pass']}")
+    print(f"15%以上GUかつ窓維持銘柄: {total_stats['gap_hit']}")
+    print(f"30日平均出来高50万株以上: {total_stats['volume_pass']}")
     print(f"株価5USD以上: {total_stats['price_pass']}")
     print(f"時価総額取得失敗: {total_stats['market_cap_missing']}")
     print(f"時価総額3B以上: {total_stats['market_cap_pass']}")
@@ -182,17 +193,21 @@ def main():
     if not all_results:
         print("該当銘柄なし")
     else:
-        for symbol, date, gap, market_cap, avg_volume_30d, current_price in sorted(
+        for symbol, date, gap, market_cap, avg_volume_30d, gap_day_volume, current_price in sorted(
             all_results,
             key=lambda x: x[2],
             reverse=True
         ):
+            volume_multiple = gap_day_volume / avg_volume_30d
+
             print(
                 f"{symbol} | {date} | "
                 f"Gap: {gap:.2f}% | "
                 f"Price: ${current_price:.2f} | "
                 f"MarketCap: ${market_cap / 1_000_000_000:.2f}B | "
-                f"AvgVol30D: {avg_volume_30d:,.0f}"
+                f"AvgVol30D: {avg_volume_30d:,.0f} | "
+                f"GapDayVol: {gap_day_volume:,.0f} | "
+                f"VolMultiple: {volume_multiple:.2f}x"
             )
 
         print("")
