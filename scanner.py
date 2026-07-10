@@ -65,6 +65,10 @@ def scan_batch(symbols):
             stats["checked"] += 1
             df = data[symbol].dropna()
 
+            if symbol == "ALNY":
+                print("===== ALNY DEBUG =====")
+                print(df[["Open", "Close", "Volume"]].tail(10))
+
             if len(df) < 31:
                 continue
 
