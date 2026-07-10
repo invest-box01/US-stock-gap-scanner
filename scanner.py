@@ -157,8 +157,8 @@ def main():
     print("")
     print("===== 集計 =====")
     print(f"チェック銘柄数: {total_stats['checked']}")
-    print(f"20%以上GU銘柄: {total_stats['gap_hit']}")
-    print(f"出来高70万株以上: {total_stats['volume_pass']}")
+    print(f"10%以上GU銘柄: {total_stats['gap_hit']}")
+    print(f"出来高50万株以上: {total_stats['volume_pass']}")
     print(f"時価総額取得失敗: {total_stats['market_cap_missing']}")
     print(f"時価総額3B以上: {total_stats['market_cap_pass']}")
 
