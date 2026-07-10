@@ -86,9 +86,14 @@ def scan_batch(symbols):
                 gap = ((today_open - prev_close) / prev_close) * 100
 
                 if gap >= GAP_THRESHOLD:
-                    gap_found = gap
-                    gap_date = recent.index[i].strftime("%Y-%m-%d")
-                    break
+    today_low = recent["Low"].iloc[i]
+
+    if today_low <= prev_close:
+        continue
+
+    gap_found = gap
+    gap_date = recent.index[i].strftime("%Y-%m-%d")
+    break
 
             if gap_found is None:
                 continue
