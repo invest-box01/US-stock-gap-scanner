@@ -97,13 +97,13 @@ def scan_batch(symbols):
                 continue
 
             stats["volume_pass"] += 1
+
             current_price = df["Close"].iloc[-1]
 
             if current_price < MIN_PRICE:
-    continue
+                continue
 
             market_cap = get_market_cap(symbol)
-
             if market_cap is None:
                 stats["market_cap_missing"] += 1
                 continue
