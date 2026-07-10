@@ -107,6 +107,11 @@ def scan_batch(symbols):
 
             stats["price_pass"] += 1
 
+            today_volume = recent["Volume"].iloc[i]
+
+            if today_volume < avg_volume_30d * 1.5:
+    continue
+
             market_cap = get_market_cap(symbol)
 
             if market_cap is None:
