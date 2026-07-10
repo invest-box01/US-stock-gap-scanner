@@ -1,12 +1,13 @@
 import yfinance as yf
 from symbols import get_symbols
 
-GAP_THRESHOLD = 20
+GAP_THRESHOLD = 10
 LOOKBACK_DAYS = 5
 BATCH_SIZE = 100
 
 MIN_MARKET_CAP = 3_000_000_000
-MIN_AVG_VOLUME_30D = 700_000
+MIN_PRICE = 5
+MIN_AVG_VOLUME_30D = 500_000
 
 
 def clean_symbol(symbol):
@@ -96,6 +97,10 @@ def scan_batch(symbols):
                 continue
 
             stats["volume_pass"] += 1
+current_price = df["Close"].iloc[-1]
+
+if current_price < MIN_PRICE:
+    continue
 
             market_cap = get_market_cap(symbol)
 
