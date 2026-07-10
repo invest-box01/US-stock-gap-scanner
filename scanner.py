@@ -56,7 +56,6 @@ def scan_batch(symbols):
         auto_adjust=False,
         interval="1d",
         group_by="ticker",
-        auto_adjust=False,
         threads=True,
         progress=False
     )
