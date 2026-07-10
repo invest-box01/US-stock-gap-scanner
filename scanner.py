@@ -16,14 +16,38 @@ def clean_symbol(symbol):
 def get_market_cap(symbol):
     try:
         ticker = yf.Ticker(symbol)
-        info = ticker.fast_info
-        return info.get("market_cap", None)
+
+        try:
+            cap = ticker.fast_info.get("market_cap")
+            if cap:
+                return cap
+        except Exception:
+            pass
+
+        try:
+            info = ticker.get_info()
+            cap = info.get("marketCap")
+            if cap:
+                return cap
+        except Exception:
+            pass
+
+        return None
+
     except Exception:
         return None
 
 
 def scan_batch(symbols):
     results = []
+
+    stats = {
+        "checked": 0,
+        "gap_hit": 0,
+        "volume_pass": 0,
+        "market_cap_pass": 0,
+        "market_cap_missing": 0,
+    }
 
     data = yf.download(
         tickers=" ".join(symbols),
@@ -37,22 +61,15 @@ def scan_batch(symbols):
 
     for symbol in symbols:
         try:
+            stats["checked"] += 1
             df = data[symbol].dropna()
 
             if len(df) < 31:
                 continue
 
-            avg_volume_30d = df["Volume"].tail(30).mean()
-
-            if avg_volume_30d < MIN_AVG_VOLUME_30D:
-                continue
-
-            market_cap = get_market_cap(symbol)
-
-            if market_cap is None or market_cap < MIN_MARKET_CAP:
-                continue
-
             recent = df.tail(LOOKBACK_DAYS + 1)
+            gap_found = None
+            gap_date = None
 
             for i in range(1, len(recent)):
                 prev_close = recent["Close"].iloc[i - 1]
@@ -64,16 +81,41 @@ def scan_batch(symbols):
                 gap = ((today_open - prev_close) / prev_close) * 100
 
                 if gap >= GAP_THRESHOLD:
-                    date = recent.index[i].strftime("%Y-%m-%d")
-                    results.append(
-                        (symbol, date, gap, market_cap, avg_volume_30d)
-                    )
+                    gap_found = gap
+                    gap_date = recent.index[i].strftime("%Y-%m-%d")
                     break
+
+            if gap_found is None:
+                continue
+
+            stats["gap_hit"] += 1
+
+            avg_volume_30d = df["Volume"].tail(30).mean()
+
+            if avg_volume_30d < MIN_AVG_VOLUME_30D:
+                continue
+
+            stats["volume_pass"] += 1
+
+            market_cap = get_market_cap(symbol)
+
+            if market_cap is None:
+                stats["market_cap_missing"] += 1
+                continue
+
+            if market_cap < MIN_MARKET_CAP:
+                continue
+
+            stats["market_cap_pass"] += 1
+
+            results.append(
+                (symbol, gap_date, gap_found, market_cap, avg_volume_30d)
+            )
 
         except Exception:
             continue
 
-    return results
+    return results, stats
 
 
 def main():
@@ -89,12 +131,31 @@ def main():
 
     all_results = []
 
+    total_stats = {
+        "checked": 0,
+        "gap_hit": 0,
+        "volume_pass": 0,
+        "market_cap_pass": 0,
+        "market_cap_missing": 0,
+    }
+
     for i in range(0, len(symbols), BATCH_SIZE):
         batch = symbols[i:i + BATCH_SIZE]
         print(f"Scanning {i + 1} - {i + len(batch)} / {len(symbols)}")
 
-        results = scan_batch(batch)
+        results, stats = scan_batch(batch)
         all_results.extend(results)
+
+        for key in total_stats:
+            total_stats[key] += stats[key]
+
+    print("")
+    print("===== 集計 =====")
+    print(f"チェック銘柄数: {total_stats['checked']}")
+    print(f"20%以上GU銘柄: {total_stats['gap_hit']}")
+    print(f"出来高70万株以上: {total_stats['volume_pass']}")
+    print(f"時価総額取得失敗: {total_stats['market_cap_missing']}")
+    print(f"時価総額3B以上: {total_stats['market_cap_pass']}")
 
     print("")
     print("===== 条件一致銘柄 =====")
