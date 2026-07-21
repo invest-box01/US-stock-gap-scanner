@@ -42,6 +42,7 @@ def get_market_cap(symbol):
 
 def scan_batch(symbols):
     results = []
+    missing_marketcap = []
 
     stats = {
         "checked": 0,
@@ -118,6 +119,16 @@ def scan_batch(symbols):
 
             if market_cap is None:
                 stats["market_cap_missing"] += 1
+                missing_marketcap.append(
+                    (
+                        symbol,
+                        gap_date,
+                        gap_found,
+                        current_price,
+                        avg_volume_30d,
+                        gap_day_volume,
+                    )
+                )
                 continue
 
             if market_cap < MIN_MARKET_CAP:
@@ -140,7 +151,7 @@ def scan_batch(symbols):
         except Exception:
             continue
 
-    return results, stats
+    return results, stats, missing_marketcap
 
 
 def main():
@@ -158,6 +169,7 @@ def main():
     print("スキャン開始")
 
     all_results = []
+    all_missing = []
 
     total_stats = {
         "checked": 0,
@@ -172,8 +184,9 @@ def main():
         batch = symbols[i:i + BATCH_SIZE]
         print(f"Scanning {i + 1} - {i + len(batch)} / {len(symbols)}")
 
-        results, stats = scan_batch(batch)
+        results, stats, missing = scan_batch(batch)
         all_results.extend(results)
+        all_missing.extend(missing)
 
         for key in total_stats:
             total_stats[key] += stats[key]
@@ -212,6 +225,28 @@ def main():
 
         print("")
         print(f"合計: {len(all_results)}銘柄")
+
+    print("")
+    print("===== 時価総額取得失敗 =====")
+
+    if not all_missing:
+        print("なし")
+    else:
+        for symbol, date, gap, price, avgvol, gapvol in sorted(
+            all_missing,
+            key=lambda x: x[2],
+            reverse=True
+        ):
+            volume_multiple = gapvol / avgvol
+
+            print(
+                f"{symbol} | {date} | "
+                f"Gap: {gap:.2f}% | "
+                f"Price: ${price:.2f} | "
+                f"AvgVol30D: {avgvol:,.0f} | "
+                f"GapDayVol: {gapvol:,.0f} | "
+                f"VolMultiple: {volume_multiple:.2f}x"
+            )
 
 
 if __name__ == "__main__":
